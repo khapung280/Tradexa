@@ -1,10 +1,41 @@
 import pino from "pino";
 
-const SECRET_PATTERN = /\d{6,}:[A-Za-z0-9_-]{20,}/g;
-const SECRET_KEYS = new Set(["botToken", "token", "BOT_TOKEN"]);
+const TELEGRAM_TOKEN_PATTERN = /\d{6,}:[A-Za-z0-9_-]{20,}/g;
+const BEARER_TOKEN_PATTERN = /Bearer\s+\S+/gi;
+const GOOGLE_API_KEY_PATTERN = /\b(?:AIza[0-9A-Za-z_-]{20,}|AQ\.[A-Za-z0-9_-]{20,})\b/g;
+
+const SECRET_KEYS = new Set([
+  "botToken",
+  "token",
+  "BOT_TOKEN",
+  "apiKey",
+  "AI_API_KEY",
+  "authorization",
+  "Authorization",
+]);
+
+const REDACT_PATHS = [
+  "botToken",
+  "token",
+  "BOT_TOKEN",
+  "apiKey",
+  "AI_API_KEY",
+  "authorization",
+  "Authorization",
+  "*.botToken",
+  "*.token",
+  "*.BOT_TOKEN",
+  "*.apiKey",
+  "*.AI_API_KEY",
+  "*.authorization",
+  "*.Authorization",
+];
 
 export function redactSecrets(value: string): string {
-  return value.replace(SECRET_PATTERN, "[Redacted]");
+  return value
+    .replace(TELEGRAM_TOKEN_PATTERN, "[Redacted]")
+    .replace(BEARER_TOKEN_PATTERN, "Bearer [Redacted]")
+    .replace(GOOGLE_API_KEY_PATTERN, "[Redacted]");
 }
 
 export function toLogError(error: unknown): {
@@ -53,7 +84,7 @@ const options = {
   level: "info",
   base: { service: "tradexa" },
   redact: {
-    paths: ["botToken", "token", "BOT_TOKEN", "*.botToken", "*.token", "*.BOT_TOKEN"],
+    paths: REDACT_PATHS,
     censor: "[Redacted]",
   },
   serializers: {

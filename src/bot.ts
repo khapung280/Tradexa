@@ -1,17 +1,44 @@
 import { Bot } from "grammy";
+import { createAiProvider, type AiProvider } from "./ai/index.js";
+import { TokenBudget } from "./budget/ledger.js";
 import { registerCommands } from "./commands/register.js";
 import { loadEnv } from "./config/env.js";
 import { logger } from "./config/logger.js";
+import { openChatStore, type ChatStore } from "./db/store.js";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 async function main(): Promise<void> {
-  const { botToken } = loadEnv();
+  const { botToken, ai, budget: budgetLimits } = loadEnv();
+  const store = openChatStore();
+  const provider = ai === null ? null : createAiProvider(ai);
+  const budget = new TokenBudget(store, budgetLimits);
+  logger.info({ databasePath: store.path }, "Database ready");
+
+  try {
+    await runBot(botToken, store, provider, budget);
+  } finally {
+    store.close();
+    logger.info("Database closed");
+  }
+}
+
+async function runBot(
+  botToken: string,
+  store: ChatStore,
+  provider: AiProvider | null,
+  budget: TokenBudget,
+): Promise<void> {
   const bot = new Bot(botToken, {
     client: { sensitiveLogs: false },
   });
 
-  registerCommands(bot);
+  registerCommands(bot, {
+    store,
+    provider,
+    budget,
+    inflight: new Set<number>(),
+  });
 
   bot.catch((botError) => {
     logger.error(
@@ -59,7 +86,17 @@ async function main(): Promise<void> {
     shutdown("SIGTERM");
   });
 
-  logger.info("Environment loaded");
+  logger.info(
+    {
+      aiConfigured: provider !== null,
+      provider: provider?.name ?? null,
+      model: provider?.model ?? null,
+      dailyGlobalTokens: budget.limits.dailyGlobalTokens,
+      dailyChatTokens: budget.limits.dailyChatTokens,
+      maxOutputTokens: budget.limits.maxOutputTokens,
+    },
+    "Environment loaded",
+  );
   logger.info("Connecting to Telegram");
 
   await bot.start({
