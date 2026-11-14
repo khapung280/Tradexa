@@ -5,18 +5,19 @@ import { registerCommands } from "./commands/register.js";
 import { loadEnv } from "./config/env.js";
 import { logger } from "./config/logger.js";
 import { openChatStore, type ChatStore } from "./db/store.js";
+import type { RiskLimits } from "./risk/limits.js";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 async function main(): Promise<void> {
-  const { botToken, ai, budget: budgetLimits } = loadEnv();
+  const { botToken, ai, budget: budgetLimits, risk: riskLimits } = loadEnv();
   const store = openChatStore();
   const provider = ai === null ? null : createAiProvider(ai);
   const budget = new TokenBudget(store, budgetLimits);
   logger.info({ databasePath: store.path }, "Database ready");
 
   try {
-    await runBot(botToken, store, provider, budget);
+    await runBot(botToken, store, provider, budget, riskLimits);
   } finally {
     store.close();
     logger.info("Database closed");
@@ -28,17 +29,22 @@ async function runBot(
   store: ChatStore,
   provider: AiProvider | null,
   budget: TokenBudget,
+  riskLimits: RiskLimits,
 ): Promise<void> {
   const bot = new Bot(botToken, {
     client: { sensitiveLogs: false },
   });
 
-  registerCommands(bot, {
-    store,
-    provider,
-    budget,
-    inflight: new Set<number>(),
-  });
+  registerCommands(
+    bot,
+    {
+      store,
+      provider,
+      budget,
+      inflight: new Set<number>(),
+    },
+    riskLimits,
+  );
 
   bot.catch((botError) => {
     logger.error(
@@ -94,6 +100,9 @@ async function runBot(
       dailyGlobalTokens: budget.limits.dailyGlobalTokens,
       dailyChatTokens: budget.limits.dailyChatTokens,
       maxOutputTokens: budget.limits.maxOutputTokens,
+      maxRiskPercent: riskLimits.maxRiskPercent,
+      maxLots: riskLimits.maxLots,
+      maxDailyLoss: riskLimits.maxDailyLoss,
     },
     "Environment loaded",
   );

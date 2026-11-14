@@ -1,4 +1,10 @@
 import { config as loadDotenv } from "dotenv";
+import {
+  DEFAULT_MAX_DAILY_LOSS,
+  DEFAULT_MAX_LOTS,
+  DEFAULT_MAX_RISK_PERCENT,
+  type RiskLimits,
+} from "../risk/limits.js";
 
 const BOT_TOKEN_PATTERN = /^\d{6,}:[A-Za-z0-9_-]{30,}$/;
 const PLACEHOLDER_MODELS = new Set([
@@ -30,6 +36,7 @@ export type AppEnv = {
   botToken: string;
   ai: AiConfig | null;
   budget: BudgetConfig;
+  risk: RiskLimits;
 };
 
 function readPositiveInt(
@@ -135,11 +142,47 @@ export function readBudgetConfig(env: NodeJS.ProcessEnv): BudgetConfig {
   };
 }
 
+function readPositiveNumber(
+  env: NodeJS.ProcessEnv,
+  key: string,
+  fallback: number,
+): number {
+  const raw = readRequiredTrimmed(env, key);
+  if (raw === undefined) {
+    return fallback;
+  }
+  if (!/^[0-9]+(?:\.[0-9]+)?$/.test(raw)) {
+    throw new Error(`${key} must be a positive number.`);
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${key} must be a positive number.`);
+  }
+  return value;
+}
+
+export function readRiskLimits(env: NodeJS.ProcessEnv): RiskLimits {
+  return {
+    maxRiskPercent: readPositiveNumber(
+      env,
+      "RISK_MAX_PERCENT",
+      DEFAULT_MAX_RISK_PERCENT,
+    ),
+    maxLots: readPositiveNumber(env, "RISK_MAX_LOTS", DEFAULT_MAX_LOTS),
+    maxDailyLoss: readPositiveNumber(
+      env,
+      "RISK_MAX_DAILY_LOSS",
+      DEFAULT_MAX_DAILY_LOSS,
+    ),
+  };
+}
+
 export function resolveEnv(env: NodeJS.ProcessEnv): AppEnv {
   return {
     botToken: readBotToken(env),
     ai: readAiConfig(env),
     budget: readBudgetConfig(env),
+    risk: readRiskLimits(env),
   };
 }
 

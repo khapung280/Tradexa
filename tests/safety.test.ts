@@ -7,8 +7,14 @@ import {
   readAiConfig,
   readBotToken,
   readBudgetConfig,
+  readRiskLimits,
   resolveEnv,
 } from "../src/config/env.ts";
+import {
+  DEFAULT_MAX_DAILY_LOSS,
+  DEFAULT_MAX_LOTS,
+  DEFAULT_MAX_RISK_PERCENT,
+} from "../src/risk/limits.ts";
 import { createLogger, redactSecrets } from "../src/config/logger.ts";
 
 const sampleToken = `123456789:${"A".repeat(35)}`;
@@ -109,6 +115,11 @@ describe("resolveEnv", () => {
         dailyChatTokens: DEFAULT_DAILY_CHAT_TOKENS,
         maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       },
+      risk: {
+        maxRiskPercent: DEFAULT_MAX_RISK_PERCENT,
+        maxLots: DEFAULT_MAX_LOTS,
+        maxDailyLoss: DEFAULT_MAX_DAILY_LOSS,
+      },
     });
   });
 });
@@ -142,6 +153,53 @@ describe("readBudgetConfig", () => {
     );
     expect(() => readBudgetConfig({ AI_CHAT_DAILY_TOKEN_LIMIT: "nope" })).toThrow(
       /AI_CHAT_DAILY_TOKEN_LIMIT must be a positive integer/,
+    );
+  });
+});
+
+describe("readRiskLimits", () => {
+  it("uses defaults when risk limit variables are omitted", () => {
+    expect(readRiskLimits({})).toEqual({
+      maxRiskPercent: DEFAULT_MAX_RISK_PERCENT,
+      maxLots: DEFAULT_MAX_LOTS,
+      maxDailyLoss: DEFAULT_MAX_DAILY_LOSS,
+    });
+  });
+
+  it("uses 100 when RISK_MAX_DAILY_LOSS is blank", () => {
+    expect(readRiskLimits({ RISK_MAX_DAILY_LOSS: "   " }).maxDailyLoss).toBe(100);
+    expect(readRiskLimits({ RISK_MAX_DAILY_LOSS: "" }).maxDailyLoss).toBe(100);
+  });
+
+  it("reads custom positive limits", () => {
+    expect(
+      readRiskLimits({
+        RISK_MAX_PERCENT: " 1.5 ",
+        RISK_MAX_LOTS: "0.5",
+        RISK_MAX_DAILY_LOSS: " 250 ",
+      }),
+    ).toEqual({
+      maxRiskPercent: 1.5,
+      maxLots: 0.5,
+      maxDailyLoss: 250,
+    });
+  });
+
+  it("rejects invalid risk limits", () => {
+    expect(() => readRiskLimits({ RISK_MAX_PERCENT: "0" })).toThrow(
+      /RISK_MAX_PERCENT must be a positive number/,
+    );
+    expect(() => readRiskLimits({ RISK_MAX_LOTS: "nope" })).toThrow(
+      /RISK_MAX_LOTS must be a positive number/,
+    );
+    expect(() => readRiskLimits({ RISK_MAX_DAILY_LOSS: "0" })).toThrow(
+      /RISK_MAX_DAILY_LOSS must be a positive number/,
+    );
+    expect(() => readRiskLimits({ RISK_MAX_DAILY_LOSS: "-10" })).toThrow(
+      /RISK_MAX_DAILY_LOSS must be a positive number/,
+    );
+    expect(() => readRiskLimits({ RISK_MAX_DAILY_LOSS: "nope" })).toThrow(
+      /RISK_MAX_DAILY_LOSS must be a positive number/,
     );
   });
 });
