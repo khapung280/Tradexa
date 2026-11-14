@@ -2,14 +2,14 @@ import type { AiChatOptions, AiMessage, AiProvider } from "../ai/types.js";
 import type { TokenBudget } from "../budget/ledger.js";
 import { logger } from "../config/logger.js";
 import type { ChatStore } from "../db/store.js";
+import { buildEducationSystemPrompt } from "../education/prompt.js";
 import { splitTelegramText } from "./split.js";
 
 export const AI_TIMEOUT_MS = 20_000;
 export const AI_MAX_RETRIES = 2;
 export const AI_RETRY_BACKOFF_MS = 250;
 
-export const SYSTEM_PROMPT =
-  "You are Tradexa, an AI-powered Forex Trading Assistant. You do not give personalized financial advice.";
+export const SYSTEM_PROMPT = buildEducationSystemPrompt();
 
 export const AI_UNCONFIGURED_REPLY = [
   "AI replies are not configured yet.",

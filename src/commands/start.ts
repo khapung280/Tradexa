@@ -7,7 +7,7 @@ export async function handleStart(ctx: CommandContext<Context>): Promise<void> {
       "",
       "Tradexa is an AI-powered Forex Trading Assistant.",
       "",
-      "Send /help to see the commands you can use.",
+      "Send /learn for Forex basics, /analyze for the analysis template, or /help for all commands.",
     ].join("\n"),
   );
 }
