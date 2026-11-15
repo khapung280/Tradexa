@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { SYSTEM_PROMPT } from "../src/chat/process.ts";
+import { buildChatSystemPrompt } from "../src/chat/process.ts";
 import { buildEducationSystemPrompt } from "../src/education/prompt.ts";
+import { buildMarketAiContext } from "../src/market/context.ts";
 import { EDUCATION_DISCLAIMER, EDUCATION_TOPIC_IDS } from "../src/education/topics.ts";
+
+const FROZEN_NOW = Date.parse("2026-01-12T14:00:00.000Z");
 
 describe("buildEducationSystemPrompt", () => {
   it("includes all eight topic ids and the education disclaimer", () => {
@@ -26,7 +29,9 @@ describe("buildEducationSystemPrompt", () => {
     expect(prompt).toContain("/learn");
   });
 
-  it("is the system prompt used by AI chat", () => {
-    expect(SYSTEM_PROMPT).toBe(buildEducationSystemPrompt());
+  it("is included in the per-request AI chat system prompt", () => {
+    const prompt = buildChatSystemPrompt(FROZEN_NOW);
+    expect(prompt.startsWith(buildEducationSystemPrompt())).toBe(true);
+    expect(prompt).toContain(buildMarketAiContext(FROZEN_NOW));
   });
 });

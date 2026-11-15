@@ -6,7 +6,9 @@ import { handlePrivateText, type ChatCommandDeps } from "./chat.js";
 import { handleHelp } from "./help.js";
 import { handleLearn } from "./learn.js";
 import { handleRisk } from "./risk.js";
+import { handleSession } from "./session.js";
 import { handleStart } from "./start.js";
+import { handleTimeframe } from "./timeframe.js";
 
 export type { ChatCommandDeps };
 
@@ -33,6 +35,16 @@ export function registerCommands(
   bot.command("analyze", async (ctx) => {
     logger.info({ command: "analyze", chatId: ctx.chat?.id ?? null }, "Command received");
     await handleAnalyze(ctx);
+  });
+
+  bot.command("timeframe", async (ctx) => {
+    logger.info({ command: "timeframe", chatId: ctx.chat?.id ?? null }, "Command received");
+    await handleTimeframe(ctx);
+  });
+
+  bot.command("session", async (ctx) => {
+    logger.info({ command: "session", chatId: ctx.chat?.id ?? null }, "Command received");
+    await handleSession(ctx);
   });
 
   bot.command("risk", async (ctx) => {

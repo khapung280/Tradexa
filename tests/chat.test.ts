@@ -8,7 +8,7 @@ import {
   AI_BUSY_REPLY,
   AI_ERROR_REPLY,
   AI_UNCONFIGURED_REPLY,
-  SYSTEM_PROMPT,
+  buildChatSystemPrompt,
   classifyAiError,
   processPrivateText,
   shouldHandlePrivateText,
@@ -41,6 +41,9 @@ class FakeProvider implements AiProvider {
 function reply(text: string, inputTokens = 2, outputTokens = 3): AiChatResult {
   return { text, inputTokens, outputTokens };
 }
+
+const FROZEN_NOW = Date.parse("2026-01-12T14:00:00.000Z");
+const SYSTEM_PROMPT = buildChatSystemPrompt(FROZEN_NOW);
 
 describe("shouldHandlePrivateText", () => {
   it("accepts private non-command text", () => {
@@ -125,6 +128,7 @@ describe("processPrivateText", () => {
       timeoutMs: 50,
       maxRetries: 2,
       delay: async () => {},
+      now: () => FROZEN_NOW,
     };
   }
 
@@ -158,9 +162,24 @@ describe("processPrivateText", () => {
     ]);
     expect(store.getHistory(22)).toEqual([]);
     expect(provider.lastMessages?.[0]).toEqual({ role: "system", content: SYSTEM_PROMPT });
+    expect(provider.lastMessages?.[0]?.content).toContain("London / New York overlap: YES");
     expect(provider.lastMessages?.some((message) => message.content === "What is EURUSD?")).toBe(
       true,
     );
+  });
+
+  it("uses the injected clock for the system prompt on reserve and provider call", async () => {
+    const summer = Date.parse("2026-07-13T16:30:00.000Z");
+    const prompt = buildChatSystemPrompt(summer);
+    const provider = new FakeProvider(async () => reply("ok"));
+    await processPrivateText(1, "sessions?", {
+      ...deps(provider),
+      now: () => summer,
+    });
+    expect(provider.lastMessages?.[0]).toEqual({ role: "system", content: prompt });
+    expect(prompt).toContain("London [london] — CLOSED");
+    expect(prompt).toContain("New York [newyork] — OPEN");
+    expect(prompt).toContain("London / New York overlap: NO");
   });
 
   it("loads the latest stored messages as history", async () => {

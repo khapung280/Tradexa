@@ -1,17 +1,19 @@
 # Tradexa
 
-Phase 4 Telegram AI chatbot for Forex education, analysis concepts, and position-size risk calculations. Tradexa answers private-chat messages with an OpenAI-compatible model (Google Gemini by default), keeps a short SQLite history per chat, enforces daily token budgets, teaches Forex with a static lesson catalog, and sizes positions from user-supplied inputs without live market data.
+Phase 5 Telegram AI chatbot for Forex education, analysis concepts, position-size risk calculations, and trading-session context. Tradexa answers private-chat messages with an OpenAI-compatible model (Google Gemini by default), keeps a short SQLite history per chat, enforces daily token budgets, teaches Forex with a static lesson catalog, reports catalog session hours and London/New York overlap, and sizes positions from user-supplied inputs without live market data.
 
 ## Features
 
 - `/start` and `/help` commands
 - `/learn` — static beginner lessons (Forex basics, pips, lots, spreads, leverage, trend, support/resistance, price action)
 - `/analyze` — chart-reading walkthrough with `dataStatus: unavailable` (no live market data)
+- `/timeframe` — supported chart timeframes (M1–D1)
+- `/session` — current Forex session open/closed status and London/New York overlap
 - `/risk` — position size from balance, risk percent, stop-loss pips, and an explicit quote-to-account rate when needed
 - `/risk loss` — record a user-reported realized loss for this chat (UTC day)
 - `/risk status` — today's reported loss, remaining room, and kill-switch ON/OFF
 - Daily loss kill switch: when the reported-loss cap is reached, new `/risk` calculations are refused until 00:00 UTC
-- AI replies in private Telegram chats, using the education catalog as a trusted reference
+- AI replies in private Telegram chats, using the education catalog and current session-hours context as trusted references
 - Last 20 messages stored per Telegram chat ID in SQLite
 - Daily UTC token limits (global and per chat), plus a max output-token cap per request
 - Structured logs that redact bot tokens and API keys
@@ -20,7 +22,8 @@ Phase 4 Telegram AI chatbot for Forex education, analysis concepts, and position
 ## Layout
 
 - `src/bot.ts` — loads the environment, opens SQLite, connects to Telegram, and shuts down safely
-- `src/commands/` — `/start`, `/help`, `/learn`, `/analyze`, `/risk`, and private-text AI handling
+- `src/commands/` — `/start`, `/help`, `/learn`, `/analyze`, `/timeframe`, `/session`, `/risk`, and private-text AI handling
+- `src/market/` — timeframe catalog, session catalog, open/close detection, and overlap
 - `src/education/` — static lesson catalog and AI system prompt
 - `src/analysis/` — typed analysis report and chart-reading walkthrough
 - `src/risk/` — pair catalog, position-size math, risk limits, and daily-loss kill switch
@@ -72,6 +75,8 @@ Then open a private chat with the bot:
 - `/help` — command list
 - `/learn` — Forex lessons
 - `/analyze` — how to read a chart (no live data)
+- `/timeframe` — supported chart periods
+- `/session` — session status and London/New York overlap
 - `/risk EURUSD 10000 USD 1 50` — position size (example)
 - `/risk loss 50 USD` — record a user-reported loss
 - `/risk status` — today's reported loss and kill switch

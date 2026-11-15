@@ -9,7 +9,7 @@ import { utcDayStart } from "../src/budget/utc.ts";
 import {
   AI_CHAT_LIMIT_REPLY,
   AI_GLOBAL_LIMIT_REPLY,
-  SYSTEM_PROMPT,
+  buildChatSystemPrompt,
   processPrivateText,
   type ProcessDeps,
 } from "../src/chat/process.ts";
@@ -63,9 +63,11 @@ describe("token budgets", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  function promptEstimate(text: string): number {
+  const CLOCK = Date.parse("2026-01-16T12:00:00.000Z");
+
+  function promptEstimate(text: string, nowMs = CLOCK): number {
     return estimateMessagesTokens([
-      { content: SYSTEM_PROMPT },
+      { content: buildChatSystemPrompt(nowMs) },
       { content: text },
     ]);
   }
@@ -74,6 +76,7 @@ describe("token budgets", () => {
     provider: AiProvider | null,
     budget: TokenBudget,
     inflight = new Set<number>(),
+    nowMs = CLOCK,
   ): ProcessDeps {
     return {
       store,
@@ -83,13 +86,14 @@ describe("token budgets", () => {
       timeoutMs: 50,
       maxRetries: 0,
       delay: async () => {},
+      now: () => nowMs,
     };
   }
 
   it("blocks a chat at its UTC daily limit without calling the provider", async () => {
     const text = "hello";
-    const estimated = promptEstimate(text);
     const now = Date.parse("2026-01-16T12:00:00.000Z");
+    const estimated = promptEstimate(text, now);
     store.recordUsage({
       chatId: 1,
       provider: "fake",
@@ -109,7 +113,7 @@ describe("token budgets", () => {
       () => now,
     );
 
-    const result = await processPrivateText(1, text, deps(provider, budget));
+    const result = await processPrivateText(1, text, deps(provider, budget, new Set(), now));
     expect(result).toEqual({ status: "limited", reply: AI_CHAT_LIMIT_REPLY });
     expect(provider.calls).toBe(0);
     expect(store.getHistory(1)).toEqual([]);
@@ -117,8 +121,8 @@ describe("token budgets", () => {
 
   it("blocks the bot at the global UTC daily limit", async () => {
     const text = "hello";
-    const estimated = promptEstimate(text);
     const now = Date.parse("2026-01-16T12:00:00.000Z");
+    const estimated = promptEstimate(text, now);
     store.recordUsage({
       chatId: 99,
       provider: "fake",
@@ -138,15 +142,15 @@ describe("token budgets", () => {
       () => now,
     );
 
-    const result = await processPrivateText(1, text, deps(provider, budget));
+    const result = await processPrivateText(1, text, deps(provider, budget, new Set(), now));
     expect(result).toEqual({ status: "limited", reply: AI_GLOBAL_LIMIT_REPLY });
     expect(provider.calls).toBe(0);
   });
 
   it("ignores yesterday's UTC usage after the daily reset", async () => {
     const text = "hello";
-    const estimated = promptEstimate(text);
     const now = Date.parse("2026-01-16T00:30:00.000Z");
+    const estimated = promptEstimate(text, now);
     store.recordUsage({
       chatId: 1,
       provider: "fake",
@@ -166,7 +170,7 @@ describe("token budgets", () => {
       () => now,
     );
 
-    const result = await processPrivateText(1, text, deps(provider, budget));
+    const result = await processPrivateText(1, text, deps(provider, budget, new Set(), now));
     expect(result.status).toBe("ok");
     expect(provider.calls).toBe(1);
   });

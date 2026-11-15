@@ -3,13 +3,16 @@ import type { TokenBudget } from "../budget/ledger.js";
 import { logger } from "../config/logger.js";
 import type { ChatStore } from "../db/store.js";
 import { buildEducationSystemPrompt } from "../education/prompt.js";
+import { buildMarketAiContext } from "../market/context.js";
 import { splitTelegramText } from "./split.js";
 
 export const AI_TIMEOUT_MS = 20_000;
 export const AI_MAX_RETRIES = 2;
 export const AI_RETRY_BACKOFF_MS = 250;
 
-export const SYSTEM_PROMPT = buildEducationSystemPrompt();
+export function buildChatSystemPrompt(nowMs: number): string {
+  return [buildEducationSystemPrompt(), "", buildMarketAiContext(nowMs)].join("\n");
+}
 
 export const AI_UNCONFIGURED_REPLY = [
   "AI replies are not configured yet.",
@@ -35,6 +38,7 @@ export type ProcessDeps = {
   timeoutMs: number;
   maxRetries: number;
   delay: (ms: number) => Promise<void>;
+  now: () => number;
 };
 
 export type ProcessResult =
@@ -70,6 +74,7 @@ export function defaultProcessDeps(
     timeoutMs: AI_TIMEOUT_MS,
     maxRetries: AI_MAX_RETRIES,
     delay: delayMs,
+    now: Date.now,
   };
 }
 
@@ -95,8 +100,9 @@ export async function processPrivateText(
   const provider = deps.provider;
   let reservationId: number | undefined;
   try {
+    const systemPrompt = buildChatSystemPrompt(deps.now());
     const pendingMessages: AiMessage[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       ...deps.store.getHistory(chatId),
       { role: "user", content: trimmed },
     ];
@@ -111,7 +117,7 @@ export async function processPrivateText(
 
     deps.store.saveMessage(chatId, "user", trimmed);
     const messages: AiMessage[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       ...deps.store.getHistory(chatId),
     ];
 
