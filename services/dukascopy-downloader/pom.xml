@@ -1,0 +1,68 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.tradexa</groupId>
+    <artifactId>dukascopy-downloader</artifactId>
+    <version>1.0.0</version>
+
+    <properties>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <jforex.api.version>2.13.99</jforex.api.version>
+        <jforex.client.version>3.6.51</jforex.client.version>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>dc_public</id>
+            <url>https://www.dukascopy.com/client/jforexlib/publicrepo/</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.dukascopy.dds2</groupId>
+            <artifactId>DDS2-jClient-JForex</artifactId>
+            <version>${jforex.client.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.dukascopy.api</groupId>
+            <artifactId>JForex-API</artifactId>
+            <version>${jforex.api.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <compilerArgs>
+                        <arg>-XDignore.symbol.file</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <argLine>--add-exports java.base/sun.net.www.protocol.http=ALL-UNNAMED --add-exports java.base/sun.net.www.protocol.https=ALL-UNNAMED</argLine>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

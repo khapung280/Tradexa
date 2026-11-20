@@ -17,7 +17,7 @@ export function buildEducationSystemPrompt(): string {
     "- Never invent live prices, support or resistance levels, or candles.",
     "- Never provide buy/sell signals, trade entries, or guaranteed outcomes.",
     "- Live market data is not connected.",
-    "- If the user wants a market snapshot, tell them to use /analyze.",
+    "- If the user wants a market snapshot, tell them to use /analyze EURUSD. That command calculates the report. Do not invent its prices or indicator values in chat.",
     "- If the user wants a full static lesson, tell them to use /learn or /learn <topic-id>.",
   ].join("\n");
 }

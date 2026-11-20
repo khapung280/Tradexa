@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { parseStoredDecision, type DecisionRecord } from "../decision/record.js";
 
 export const DEFAULT_DATABASE_PATH = resolve("data/tradexa.db");
 export const HISTORY_LIMIT = 20;
@@ -84,6 +85,19 @@ CREATE TABLE IF NOT EXISTS daily_loss_entries (
 
 CREATE INDEX IF NOT EXISTS daily_loss_entries_chat_id_day_start_idx
   ON daily_loss_entries (chat_id, day_start);
+
+CREATE TABLE IF NOT EXISTS decisions (
+  id TEXT PRIMARY KEY,
+  chat_id INTEGER,
+  symbol TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  schema_version INTEGER NOT NULL,
+  fingerprint TEXT NOT NULL,
+  payload TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS decisions_chat_id_created_at_idx
+  ON decisions (chat_id, created_at);
 
 CREATE TABLE IF NOT EXISTS daily_loss_days (
   chat_id INTEGER NOT NULL,
@@ -182,11 +196,19 @@ export class ChatStore {
   private readonly insertDailyLossDayStmt;
   private readonly addDailyLossTotalStmt;
   private readonly markDailyLossKilledStmt;
+  private readonly insertDecisionStmt;
+  private readonly getDecisionStmt;
+  private readonly listDecisionsStmt;
+  private readonly listRecentDecisionsStmt;
 
   constructor(dbPath: string = DEFAULT_DATABASE_PATH) {
     this.path = dbPath;
     ensureParentDirectory(dbPath);
-    this.db = new DatabaseSync(dbPath);
+    this.db = new DatabaseSync(dbPath, { timeout: 5_000 });
+    this.db.exec("PRAGMA busy_timeout = 5000");
+    if (dbPath !== ":memory:") {
+      this.db.exec("PRAGMA journal_mode = WAL");
+    }
     this.db.exec(SCHEMA);
     this.insertMessageStmt = this.db.prepare(
       "INSERT INTO messages (chat_id, role, content, created_at) VALUES (?, ?, ?, ?)",
@@ -234,6 +256,18 @@ export class ChatStore {
     );
     this.markDailyLossKilledStmt = this.db.prepare(
       "UPDATE daily_loss_days SET killed = 1 WHERE chat_id = ? AND day_start = ?",
+    );
+    this.insertDecisionStmt = this.db.prepare(
+      "INSERT INTO decisions (id, chat_id, symbol, created_at, schema_version, fingerprint, payload) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    );
+    this.getDecisionStmt = this.db.prepare(
+      "SELECT payload FROM decisions WHERE id = ?",
+    );
+    this.listDecisionsStmt = this.db.prepare(
+      "SELECT payload FROM decisions WHERE chat_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+    );
+    this.listRecentDecisionsStmt = this.db.prepare(
+      "SELECT payload FROM decisions ORDER BY created_at DESC, id DESC LIMIT ?",
     );
   }
 
@@ -402,6 +436,56 @@ export class ChatStore {
     return { status: "recorded", day };
   }
 
+  insertDecision(record: DecisionRecord): void {
+    const stored = parseStoredDecision(record);
+    if (!stored.ok) {
+      throw new Error(stored.reason);
+    }
+    try {
+      this.insertDecisionStmt.run(
+        stored.record.id,
+        stored.record.chatId,
+        stored.record.symbol,
+        stored.record.createdAtMs,
+        stored.record.schemaVersion,
+        stored.record.fingerprint,
+        JSON.stringify(stored.record),
+      );
+    } catch (error: unknown) {
+      if (isUniqueConstraintError(error)) {
+        throw new Error("A decision with this id already exists. Previous decisions are not overwritten.");
+      }
+      throw error;
+    }
+  }
+
+  getDecision(id: string): DecisionRecord | null {
+    const row = this.getDecisionStmt.get(id) as { payload?: unknown } | undefined;
+    if (row === undefined) {
+      return null;
+    }
+    return readDecisionPayload(row.payload);
+  }
+
+  listRecentDecisions(limit: number): DecisionRecord[] {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 20) {
+      throw new Error("Decision history limit must be an integer from 1 to 20.");
+    }
+    const rows = this.listRecentDecisionsStmt.all(limit) as { payload?: unknown }[];
+    return rows.map((row) => readDecisionPayload(row.payload));
+  }
+
+  listDecisions(chatId: number, limit: number): DecisionRecord[] {
+    if (!Number.isSafeInteger(chatId)) {
+      throw new Error("chatId must be a safe integer.");
+    }
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 20) {
+      throw new Error("Decision history limit must be an integer from 1 to 20.");
+    }
+    const rows = this.listDecisionsStmt.all(chatId, limit) as { payload?: unknown }[];
+    return rows.map((row) => readDecisionPayload(row.payload));
+  }
+
   markDailyLossKilled(chatId: number, dayStart: number): DailyLossDay | null {
     if (!Number.isSafeInteger(chatId)) {
       throw new Error("chatId must be a safe integer.");
@@ -418,6 +502,23 @@ export class ChatStore {
       this.db.close();
     }
   }
+}
+
+function readDecisionPayload(payload: unknown): DecisionRecord {
+  if (typeof payload !== "string") {
+    throw new Error("Stored decision record is invalid.");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    throw new Error("Stored decision record is invalid.");
+  }
+  const stored = parseStoredDecision(parsed);
+  if (!stored.ok) {
+    throw new Error("Stored decision record is invalid.");
+  }
+  return stored.record;
 }
 
 export function openChatStore(dbPath: string = DEFAULT_DATABASE_PATH): ChatStore {

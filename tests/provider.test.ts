@@ -85,5 +85,70 @@ describe("OpenAiCompatibleProvider request", () => {
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(body.max_tokens).toBe(256);
+    expect(body.response_format).toBeUndefined();
+    expect(body.reasoning_effort).toBeUndefined();
+  });
+
+  it("sends a JSON schema only when the caller supplies one", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          choices: [{ finish_reason: "stop", message: { content: "{\"ok\":true}" } }],
+          usage: { prompt_tokens: 1, completion_tokens: 2 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createOpenAiCompatibleProvider({
+      apiKey: sampleApiKey,
+      baseUrl: GEMINI_OPENAI_BASE_URL,
+      model: "gemini-3.8-flash",
+    });
+    const responseFormat = {
+      type: "json_schema" as const,
+      json_schema: {
+        name: "tradexa_assessment",
+        strict: true as const,
+        schema: {
+          type: "object" as const,
+          additionalProperties: false as const,
+          properties: { schemaVersion: { type: "integer" } },
+          required: ["schemaVersion"],
+        },
+      },
+    };
+    await provider.chat([{ role: "user", content: "assess" }], undefined, {
+      maxOutputTokens: 2048,
+      responseFormat,
+      reasoningEffort: "low",
+    });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(body.max_tokens).toBe(2048);
+    expect(body.response_format).toEqual(responseFormat);
+    expect(body.reasoning_effort).toBe("low");
+    expect(body.temperature).toBeUndefined();
+  });
+
+  it("separates provider extraction failures from assessment text", async () => {
+    const provider = createOpenAiCompatibleProvider({
+      apiKey: sampleApiKey,
+      baseUrl: GEMINI_OPENAI_BASE_URL,
+      model: "gemini-3.8-flash",
+    });
+    const cases: Array<{ body: string; message: string }> = [
+      { body: "not-json", message: "AI response was not valid JSON." },
+      { body: JSON.stringify({ usage: {} }), message: "AI response did not include assistant text." },
+      { body: JSON.stringify({ choices: [{}] }), message: "AI response did not include assistant text." },
+      { body: JSON.stringify({ choices: [{ message: {} }] }), message: "AI response did not include assistant text." },
+      { body: JSON.stringify({ choices: [{ message: { content: "   " } }] }), message: "AI response did not include assistant text." },
+      { body: JSON.stringify({ choices: [{ message: { content: [{ type: "text", text: "{\"schemaVersion\":1}" }] } }] }), message: "AI response content was not text." },
+      { body: JSON.stringify({ choices: [{ finish_reason: "length", message: { content: "{\"schemaVersion\":1" } }] }), message: "AI response was truncated." },
+      { body: JSON.stringify({ choices: [{ finish_reason: "content_filter", message: { content: "" } }] }), message: "AI response was blocked by the provider." },
+    ];
+    for (const item of cases) {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(item.body, { status: 200, headers: { "Content-Type": "application/json" } })));
+      await expect(provider.chat([{ role: "user", content: "assess" }])).rejects.toThrow(item.message);
+    }
   });
 });

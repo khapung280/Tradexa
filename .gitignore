@@ -4,3 +4,8 @@ dist/
 data/
 *.log
 *.tsbuildinfo
+
+# Java / Maven
+target/
+*.class
+services/dukascopy-downloader/output/

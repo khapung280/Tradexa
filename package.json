@@ -6,7 +6,8 @@
   "scripts": {
     "start": "tsx src/bot.ts",
     "test": "vitest run --passWithNoTests",
-    "build": "tsc"
+    "build": "tsc",
+    "dashboard": "tsx src/web/server.ts"
   },
   "repository": {
     "type": "git",

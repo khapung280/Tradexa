@@ -6,7 +6,7 @@ export function renderStartReply(): string {
     "",
     "Tradexa is an AI-powered Forex Trading Assistant.",
     "",
-    "Send /learn for Forex basics, /analyze for the analysis template, /timeframe for chart periods, /session for market hours, /risk for position size, /risk loss to report a loss, /risk status for today's reported loss, or /help for all commands.",
+    "Send /learn for Forex basics, /analyze for the chart-reading guide, /analyze EURUSD for a historical technical report, /backtest EURUSD for a historical strategy simulation, /decision EURUSD for a shadow-mode assessment that is not a live signal, /timeframe for chart periods, /session for market hours, /risk for position size, /risk loss to report a loss, /risk status for today's reported loss, or /help for all commands.",
     "",
     "Losses are user-reported. Tradexa does not receive P/L from a broker or live trading account.",
   ].join("\n");

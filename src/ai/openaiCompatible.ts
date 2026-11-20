@@ -3,8 +3,9 @@ import type { AiChatOptions, AiChatResult, AiMessage, AiProvider } from "./types
 
 type ChatCompletionsResponse = {
   choices?: Array<{
+    finish_reason?: string | null;
     message?: {
-      content?: string | null;
+      content?: unknown;
     };
   }>;
   usage?: {
@@ -38,12 +39,20 @@ export class OpenAiCompatibleProvider implements AiProvider {
       model: string;
       messages: readonly AiMessage[];
       max_tokens?: number;
+      response_format?: AiChatOptions["responseFormat"];
+      reasoning_effort?: "low";
     } = {
       model: this.config.model,
       messages,
     };
     if (options !== undefined) {
       payload.max_tokens = options.maxOutputTokens;
+      if (options.responseFormat !== undefined) {
+        payload.response_format = options.responseFormat;
+      }
+      if (options.reasoningEffort !== undefined) {
+        payload.reasoning_effort = options.reasoningEffort;
+      }
     }
 
     const init: RequestInit = {
@@ -82,16 +91,34 @@ export class OpenAiCompatibleProvider implements AiProvider {
       throw new Error("AI response was not valid JSON.");
     }
 
-    const text = body.choices?.[0]?.message?.content?.trim() ?? "";
-    if (text.length === 0) {
+    const choice = body.choices?.[0];
+    if (choice?.finish_reason === "length") {
+      throw new Error("AI response was truncated.");
+    }
+    if (choice?.finish_reason === "content_filter") {
+      throw new Error("AI response was blocked by the provider.");
+    }
+    const content = choice?.message?.content;
+    if (typeof content === "string") {
+      const text = content.trim();
+      if (text.length === 0) {
+        throw new Error("AI response did not include assistant text.");
+      }
+      const result: AiChatResult = {
+        text,
+        inputTokens: body.usage?.prompt_tokens ?? 0,
+        outputTokens: body.usage?.completion_tokens ?? 0,
+      };
+      const finishReason = choice?.finish_reason;
+      if (typeof finishReason === "string" && finishReason.length > 0) {
+        result.finishReason = finishReason;
+      }
+      return result;
+    }
+    if (content === undefined || content === null) {
       throw new Error("AI response did not include assistant text.");
     }
-
-    return {
-      text,
-      inputTokens: body.usage?.prompt_tokens ?? 0,
-      outputTokens: body.usage?.completion_tokens ?? 0,
-    };
+    throw new Error("AI response content was not text.");
   }
 }
 

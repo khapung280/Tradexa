@@ -2,6 +2,8 @@ import { Bot } from "grammy";
 import { logger } from "../config/logger.js";
 import { DEFAULT_RISK_LIMITS, type RiskLimits } from "../risk/limits.js";
 import { handleAnalyze } from "./analyze.js";
+import { handleBacktest } from "./backtest.js";
+import { handleDecision, handleDecisionHistory } from "./decision.js";
 import { handlePrivateText, type ChatCommandDeps } from "./chat.js";
 import { handleHelp } from "./help.js";
 import { handleLearn } from "./learn.js";
@@ -34,7 +36,35 @@ export function registerCommands(
 
   bot.command("analyze", async (ctx) => {
     logger.info({ command: "analyze", chatId: ctx.chat?.id ?? null }, "Command received");
-    await handleAnalyze(ctx);
+    await handleAnalyze(ctx, {
+      provider: deps.provider,
+      budget: deps.budget,
+    });
+  });
+
+  bot.command("backtest", async (ctx) => {
+    logger.info({ command: "backtest", chatId: ctx.chat?.id ?? null }, "Command received");
+    await handleBacktest(ctx);
+  });
+
+  bot.command("decision", async (ctx) => {
+    logger.info({ command: "decision", chatId: ctx.chat?.id ?? null }, "Command received");
+    await handleDecision(ctx, {
+      store: deps.store,
+      provider: deps.provider,
+      budget: deps.budget,
+      riskLimits,
+    });
+  });
+
+  bot.command("decisions", async (ctx) => {
+    logger.info({ command: "decisions", chatId: ctx.chat?.id ?? null }, "Command received");
+    await handleDecisionHistory(ctx, {
+      store: deps.store,
+      provider: deps.provider,
+      budget: deps.budget,
+      riskLimits,
+    });
   });
 
   bot.command("timeframe", async (ctx) => {

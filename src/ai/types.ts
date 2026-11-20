@@ -9,10 +9,27 @@ export type AiChatResult = {
   text: string;
   inputTokens: number;
   outputTokens: number;
+  finishReason?: string;
+};
+
+export type JsonSchemaResponseFormat = {
+  type: "json_schema";
+  json_schema: {
+    name: string;
+    strict: true;
+    schema: {
+      type: "object";
+      additionalProperties: false;
+      properties: Record<string, unknown>;
+      required: readonly string[];
+    };
+  };
 };
 
 export type AiChatOptions = {
   maxOutputTokens: number;
+  responseFormat?: JsonSchemaResponseFormat;
+  reasoningEffort?: "low";
 };
 
 /**
